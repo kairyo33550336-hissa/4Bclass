@@ -260,9 +260,12 @@
   };
 
   let db = null;
-  if (firebaseConfig.apiKey !== "YOUR_API_KEY") {
+  try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
+    console.log("Firebaseの初期化に成功しました。接続先:", firebaseConfig.databaseURL);
+  } catch (e) {
+    console.error("Firebaseの初期化に失敗しました:", e);
   }
 
   let currentDate = new Date();
