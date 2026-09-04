@@ -22,7 +22,7 @@
       margin: 0 auto;
     }
     h1, h2 { text-align: center; }
-    
+
     .panel {
       background: white;
       padding: 20px;
@@ -30,7 +30,7 @@
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       margin-bottom: 20px;
     }
-    
+
     .calendar-header {
       display: flex;
       justify-content: space-between;
@@ -65,7 +65,7 @@
       background: #fff;
     }
     .day-number { font-weight: bold; margin-bottom: 5px; }
-    
+
     .event-item {
       font-size: 0.75em;
       padding: 2px 4px;
@@ -100,7 +100,7 @@
       border-radius: 4px;
       cursor: pointer;
     }
-    
+
     .console-box {
       background: #1e1e1e;
       color: #00ff66;
@@ -120,7 +120,8 @@
       font-size: 0.85em;
     }
   </style>
-  <!-- headタグ内に配置 -->
+
+  <!-- Firebase SDK (互換SDK v10) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
@@ -132,7 +133,7 @@
   <!-- 時間割・休業期間設定 -->
   <details class="panel">
     <summary><strong>時間割・長期休業（各種休み）の設定</strong></summary>
-    
+
     <h4 style="margin-top:15px;">■ 時間割の設定 (月〜土 / 空欄の時数は自動非表示)</h4>
     <form id="timetable-form">
       <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;">
@@ -222,7 +223,7 @@
   <!-- 課題掲示板（誰でも投稿可・写真対応） -->
   <div class="panel">
     <h3>課題掲示板（写真添付可・全員共有）</h3>
-    
+
     <div class="form-group">
       <label>科目・タイトル</label>
       <input type="text" id="task-title" placeholder="例: 数学II 週末課題">
@@ -248,11 +249,8 @@
 
 <script>
   console.log("JavaScriptは正常に動作しています");
-  
-  const firebaseConfig = {
-    // ...
-  };
- // --- Firebase 設定 ---
+
+  // --- Firebase 設定 ---
   const firebaseConfig = {
     apiKey: "AIzaSyAToSDEpvxlG-7N22fWijeoFySSKTfGeLw",
     authDomain: "class-submission-calenda-7ad76.firebaseapp.com",
@@ -267,14 +265,14 @@
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    console.log("Firebaseの初期化に成功しました。接続先:", firebaseConfig.databaseURL);
+    console.log("Firebase初期化完了: ", firebaseConfig.databaseURL);
   } catch (e) {
-    console.error("Firebaseの初期化に失敗しました:", e);
+    console.error("Firebase初期化エラー: ", e);
   }
 
   let currentDate = new Date();
   const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
-  
+
   let timeTableData = {};
   let sharedEventsData = [];
   let personalEventsData = [];
@@ -346,7 +344,7 @@
     for (let date = 1; date <= lastDate; date++) {
       const cell = document.createElement('div');
       cell.className = 'day-cell';
-      
+
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
       cell.innerHTML = `<div class="day-number">${date}</div>`;
 
@@ -463,7 +461,7 @@
       personalEventsData.push(newEvent);
       localStorage.setItem('personal_events', JSON.stringify(personalEventsData));
     }
-    
+
     document.getElementById('event-time').value = '';
     document.getElementById('event-desc').value = '';
     renderCalendar();
@@ -482,10 +480,10 @@
 
     const timestamp = new Date().toLocaleString();
     const entry = `[${timestamp}] > ${text}`;
-    
+
     hrData.push(entry);
     pushData('hr_notices', hrData);
-    
+
     document.getElementById('hr-text').value = '';
     renderHRConsole();
   }
@@ -558,10 +556,12 @@
     );
   }
 
-  // --- 同期処理 ---
+  // --- 安全な同期処理 ---
   function pushData(key, value) {
     if (db) {
-      db.ref(key).set(value);
+      db.ref(key).set(value)
+        .then(() => console.log(`${key} の送信成功`))
+        .catch(err => console.error(`${key} の送信失敗:`, err));
     } else {
       localStorage.setItem(key, JSON.stringify(value));
     }
@@ -570,7 +570,7 @@
   function initRealtimeSync() {
     if (db) {
       db.ref('timetable').on('value', snapshot => {
-        if (snapshot.exists()) timeTableData = snapshot.val();
+        if (snapshot.exists()) timeTableData = snapshot.val() || {};
         renderCalendar();
       });
       db.ref('events').on('value', snapshot => {
