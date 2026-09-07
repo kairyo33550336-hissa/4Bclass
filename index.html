@@ -119,9 +119,18 @@
       margin-top: 10px;
       font-size: 0.85em;
     }
+    .status-banner {
+      padding: 10px;
+      background: #fff3cd;
+      color: #856404;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      text-align: center;
+      font-size: 0.9em;
+    }
   </style>
 
-  <!-- Firebase SDK (互換SDK v10) -->
+  <!-- Firebase SDK (compat版) -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 </head>
@@ -129,16 +138,16 @@
 
 <div class="container">
   <h1>4Bカレンダー</h1>
+  
+  <div id="connection-status" class="status-banner">接続状態を確認中...</div>
 
   <!-- 時間割・休業期間設定 -->
   <details class="panel">
     <summary><strong>時間割・長期休業（各種休み）の設定</strong></summary>
 
-    <h4 style="margin-top:15px;">■ 時間割の設定 (月〜土 / 空欄の時数は自動非表示)</h4>
+    <h4 style="margin-top:15px;">■ 時間割の設定 (月〜土)</h4>
     <form id="timetable-form">
-      <div id="timetable-inputs" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;">
-        <!-- JavaScriptで動的に生成します -->
-      </div>
+      <div id="timetable-inputs" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px;"></div>
       <button type="button" onclick="saveTimetable()" style="margin-top: 10px;">時間割を全体共有に保存（要パスワード）</button>
     </form>
 
@@ -170,9 +179,7 @@
       <h2 id="month-display"></h2>
       <button type="button" onclick="changeMonth(1)">翌月</button>
     </div>
-    <div class="calendar-grid" id="calendar-grid">
-      <!-- 曜日、時間割、日付が挿入されます -->
-    </div>
+    <div class="calendar-grid" id="calendar-grid"></div>
   </div>
 
   <!-- お知らせ・予定送信機能 -->
@@ -211,10 +218,9 @@
     </div>
   </div>
 
-  <!-- 課題掲示板（誰でも投稿可・写真対応） -->
+  <!-- 課題掲示板 -->
   <div class="panel">
     <h3>課題掲示板（写真添付可・全員共有）</h3>
-
     <div class="form-group">
       <label>科目・タイトル</label>
       <input type="text" id="task-title" placeholder="例: 数学II 週末課題">
@@ -230,18 +236,12 @@
     <button type="button" onclick="postTask()">課題を投稿する</button>
 
     <hr style="margin: 20px 0;">
-
-    <div id="task-board-list" style="display: flex; flex-direction: column; gap: 15px;">
-      <!-- 投稿された課題カードがここに追加されます -->
-    </div>
+    <div id="task-board-list" style="display: flex; flex-direction: column; gap: 15px;"></div>
   </div>
 
 </div>
 
 <script>
-  console.log("JavaScriptは正常に動作しています");
-
-  // --- Firebase 設定 ---
   const firebaseConfig = {
     apiKey: "AIzaSyAToSDEpvxlG-7N22fWijeoFySSKTfGeLw",
     authDomain: "class-submission-calenda-7ad76.firebaseapp.com",
@@ -256,9 +256,24 @@
   try {
     firebase.initializeApp(firebaseConfig);
     db = firebase.database();
-    console.log("Firebase初期化完了: ", firebaseConfig.databaseURL);
+    
+    // 接続状態の監視
+    const connectedRef = db.ref(".info/connected");
+    connectedRef.on("value", (snap) => {
+      const statusEl = document.getElementById("connection-status");
+      if (snap.val() === true) {
+        statusEl.style.background = "#d4edda";
+        statusEl.style.color = "#155724";
+        statusEl.textContent = "🟢 オンライン: リアルタイム同期が有効です";
+      } else {
+        statusEl.style.background = "#f8d7da";
+        statusEl.style.color = "#721c24";
+        statusEl.textContent = "🔴 オフライン: サーバーに接続されていません";
+      }
+    });
   } catch (e) {
-    console.error("Firebase初期化エラー: ", e);
+    console.error("Firebase初期化エラー:", e);
+    document.getElementById("connection-status").textContent = "❌ 初期化エラー: Firebaseに接続できません";
   }
 
   let currentDate = new Date();
@@ -277,7 +292,6 @@
     initRealtimeSync();
   };
 
-  // 時間割入力フォームの動的生成（エラー防止対策）
   function generateTimetableInputs() {
     const container = document.getElementById('timetable-inputs');
     if (!container) return;
@@ -304,7 +318,6 @@
     if (!grid) return;
     grid.innerHTML = '';
 
-    // 1. 曜日ヘッダー
     dayNames.forEach(name => {
       const el = document.createElement('div');
       el.className = 'day-header';
@@ -314,7 +327,6 @@
 
     const isVacationMonth = checkMonthInVacation(year, month);
 
-    // 2. 時間割エリア
     dayNames.forEach((_, index) => {
       const el = document.createElement('div');
       el.className = 'timetable-header';
@@ -340,7 +352,6 @@
       grid.appendChild(el);
     });
 
-    // 3. 日付セル
     const firstDay = new Date(year, month, 1).getDay();
     const lastDate = new Date(year, month + 1, 0).getDate();
 
@@ -358,7 +369,6 @@
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
       cell.innerHTML = `<div class="day-number">${date}</div>`;
 
-      // 全体共有予定
       const sharedEvs = sharedEventsData.filter(e => e && e.date === dateStr);
       sharedEvs.forEach(ev => {
         const evEl = document.createElement('div');
@@ -367,7 +377,6 @@
         cell.appendChild(evEl);
       });
 
-      // 個人予定
       const personalEvs = personalEventsData.filter(e => e && e.date === dateStr);
       personalEvs.forEach(ev => {
         const evEl = document.createElement('div');
@@ -399,10 +408,8 @@
     renderCalendar();
   }
 
-  // --- 時間割保存（パスワード8192） ---
   function saveTimetable() {
     const pass = prompt('時間割を変更するにはHR委員のパスワード（8192）を入力してください:');
-
     if (pass !== '8192') {
       alert('パスワードが正しくありません。');
       return;
@@ -416,13 +423,9 @@
         data[d][h] = input ? input.value : '';
       }
     }
-    timeTableData = data;
     pushData('timetable', data);
-    renderCalendar();
-    alert('時間割を保存・共有しました。');
   }
 
-  // --- 長期休業設定 ---
   function addVacation() {
     const start = document.getElementById('vacation-start').value;
     const end = document.getElementById('vacation-end').value;
@@ -435,7 +438,6 @@
 
     vacationsData.push({ start, end, name });
     pushData('vacations', vacationsData);
-    renderCalendar();
   }
 
   function renderVacationList() {
@@ -454,7 +456,6 @@
     display.innerHTML = html;
   }
 
-  // --- 予定の送信 ---
   function sendNotice() {
     const scope = document.getElementById('event-scope').value;
     const date = document.getElementById('event-date').value;
@@ -474,14 +475,13 @@
     } else {
       personalEventsData.push(newEvent);
       localStorage.setItem('personal_events', JSON.stringify(personalEventsData));
+      renderCalendar();
     }
 
     document.getElementById('event-time').value = '';
     document.getElementById('event-desc').value = '';
-    renderCalendar();
   }
 
-  // --- HRお知らせ ---
   function sendHRNotice() {
     const pass = document.getElementById('hr-pass').value;
     const text = document.getElementById('hr-text').value;
@@ -497,9 +497,7 @@
 
     hrData.push(entry);
     pushData('hr_notices', hrData);
-
     document.getElementById('hr-text').value = '';
-    renderHRConsole();
   }
 
   function renderHRConsole() {
@@ -509,7 +507,6 @@
     consoleBox.scrollTop = consoleBox.scrollHeight;
   }
 
-  // --- 課題掲示板の処理 ---
   function postTask() {
     const title = document.getElementById('task-title').value;
     const detail = document.getElementById('task-detail').value;
@@ -542,7 +539,6 @@
     document.getElementById('task-detail').value = '';
     const fileInput = document.getElementById('task-image');
     if (fileInput) fileInput.value = '';
-    renderTaskBoard();
   }
 
   function renderTaskBoard() {
@@ -575,14 +571,19 @@
     );
   }
 
-  // --- 安全な送信＆同期処理 ---
+  // 送信処理（エラー通知付き）
   function pushData(key, value) {
     if (db) {
       db.ref(key).set(value)
-        .then(() => console.log(`${key} の送信成功`))
-        .catch(err => console.error(`${key} の送信失敗:`, err));
+        .then(() => {
+          console.log(`${key} の送信成功`);
+        })
+        .catch(err => {
+          console.error(`${key} の送信失敗:`, err);
+          alert(`Firebaseへの送信エラー: ${err.message}`);
+        });
     } else {
-      localStorage.setItem(key, JSON.stringify(value));
+      alert("Firebaseに接続されていません。");
     }
   }
 
@@ -591,6 +592,7 @@
     return Array.isArray(val) ? val : Object.values(val);
   }
 
+  // リアルタイム同期の受信処理
   function initRealtimeSync() {
     if (db) {
       db.ref('timetable').on('value', snapshot => {
@@ -613,15 +615,6 @@
         taskBoardData = safeArray(snapshot.val());
         renderTaskBoard();
       });
-    } else {
-      timeTableData = JSON.parse(localStorage.getItem('timetable')) || {};
-      sharedEventsData = JSON.parse(localStorage.getItem('events')) || [];
-      vacationsData = JSON.parse(localStorage.getItem('vacations')) || [];
-      hrData = JSON.parse(localStorage.getItem('hr_notices')) || [];
-      taskBoardData = JSON.parse(localStorage.getItem('task_board')) || [];
-      renderHRConsole();
-      renderTaskBoard();
-      renderCalendar();
     }
   }
 </script>
